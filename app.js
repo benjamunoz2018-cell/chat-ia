@@ -1,5 +1,5 @@
 // === CONFIG ===
-const N8N_WEBHOOK_URL = "https://n8n.andresmunozt.com/webhook/chat";
+const N8N_WEBHOOK_URL = "https://chat-proxy.benja-munoz-2018.workers.dev";
 const N8N_TOKEN = ""; // si lo usas, puede disparar CORS preflight en navegador
 
 // Reintentos / timeouts
@@ -1004,4 +1004,5 @@ function renderAllInit() {
   flushOutbox().catch(() => {});
 }
 renderAllInit();
+
 
