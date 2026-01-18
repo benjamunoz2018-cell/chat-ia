@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chat IA</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="overlay" class="overlay hidden"></div>
+  <div id="ctxMenu" class="ctx-menu hidden" role="menu"></div>
+
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-top">
+        <button id="btnNew">+ Nueva conversación</button>
+      </div>
+
+      <div id="convList" class="conv-list"></div>
+
+      <div class="sidebar-bottom">
+        <small>Guardado local (localStorage)</small>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="header">
+        <div class="header-left">
+          <button id="btnToggleSidebar" class="icon-btn" aria-label="Abrir menú">Menú ☰</button>
+          <div>
+            <h1 id="convTitle">Conversación</h1>
+            <div id="status" class="status"></div>
+          </div>
+        </div>
+      </header>
+
+      <section id="messages" class="messages"></section>
+
+      <!-- Flecha centrada: por JS solo se muestra si subiste -->
+      <button id="btnScrollDown" class="scroll-down hidden" type="button" aria-label="Bajar al final">↓</button>
+
+      <div id="attachBar" class="attach-bar hidden"></div>
+
+      <div id="bottomWrap" class="bottom-wrap">
+        <!-- SOLO visible mientras grabas -->
+        <div id="recBar" class="rec-bar hidden" aria-live="polite">
+          <div class="rec-left">
+            <span class="rec-dot">●</span>
+            <span class="rec-text">Grabando</span>
+            <span id="recTime" class="rec-time">00:00</span>
+          </div>
+          <div class="rec-actions">
+            <button id="btnRecCancel" class="rec-btn rec-cancel" type="button" aria-label="Cancelar">🗑</button>
+            <button id="btnRecSend" class="rec-btn rec-send" type="button" aria-label="Enviar">✓</button>
+          </div>
+        </div>
+
+        <!-- Visible normalmente -->
+        <footer id="composer" class="composer">
+          <textarea id="input" rows="1" placeholder="Escribe un mensaje..."></textarea>
+
+          <input id="filePicker" type="file" accept="application/pdf,.pdf" multiple class="hidden" />
+
+          <button id="btnAttach" class="mini-btn" type="button" aria-label="Adjuntar PDF">📎</button>
+          <button id="btnMic" class="mini-btn" type="button" aria-label="Grabar audio">🎤</button>
+
+          <button id="btnSend">Enviar</button>
+          <button id="btnStop" class="danger-btn hidden" type="button">Detener</button>
+        </footer>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
