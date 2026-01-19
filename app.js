@@ -1,5 +1,5 @@
 // === CONFIG ===
-const N8N_WEBHOOK_URL = "https://chat-proxy.benja-munoz-2018.workers.dev";
+const N8N_WEBHOOK_URL = "https://n8n.andresmunozt.com/webhook/chat";
 const N8N_TOKEN = ""; // si lo usas, puede disparar CORS preflight en navegador
 
 // Reintentos / timeouts
@@ -20,7 +20,9 @@ const OUTBOX_KEY = "chat_outbox_v1";
 const LS_KEY = "chat_n8n_state_v14";
 
 function nowIso() { return new Date().toISOString(); }
-function uid() { return crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random(); }
+function uid() {
+  return crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random();
+}
 
 function loadState() {
   try {
@@ -42,9 +44,7 @@ function loadOutbox() {
     return Array.isArray(arr) ? arr : [];
   } catch { return []; }
 }
-function saveOutbox(items) {
-  localStorage.setItem(OUTBOX_KEY, JSON.stringify(items));
-}
+function saveOutbox(items) { localStorage.setItem(OUTBOX_KEY, JSON.stringify(items)); }
 function enqueueOutbox(item) {
   const q = loadOutbox();
   q.push(item);
@@ -60,9 +60,7 @@ function peekOutbox() {
   const q = loadOutbox();
   return q[0] || null;
 }
-function outboxCount() {
-  return loadOutbox().length;
-}
+function outboxCount() { return loadOutbox().length; }
 
 // === Circuit breaker state ===
 const cb = {
@@ -74,6 +72,7 @@ const cb = {
 
 function cbCanAttempt() {
   if (cb.state === "CLOSED") return true;
+
   if (cb.state === "OPEN") {
     const elapsed = Date.now() - cb.openedAt;
     if (elapsed >= CB_OPEN_MS) {
@@ -83,24 +82,25 @@ function cbCanAttempt() {
     }
     return false;
   }
-  // HALF_OPEN
-  if (cb.halfOpenTrialsLeft > 0) return true;
-  return false;
-}
 
+  // HALF_OPEN
+  return cb.halfOpenTrialsLeft > 0;
+}
 function cbOnSuccess() {
   cb.consecutiveFails = 0;
   cb.state = "CLOSED";
+  cb.openedAt = 0;
   cb.halfOpenTrialsLeft = CB_HALFOPEN_TRIALS;
 }
-
 function cbOnFail() {
   cb.consecutiveFails += 1;
+
   if (cb.state === "HALF_OPEN") {
     cb.state = "OPEN";
     cb.openedAt = Date.now();
     return;
   }
+
   if (cb.consecutiveFails >= CB_FAIL_THRESHOLD) {
     cb.state = "OPEN";
     cb.openedAt = Date.now();
@@ -122,16 +122,9 @@ async function fetchWithTimeout(url, options, timeoutMs) {
 }
 
 function classifyFetchError(err) {
-  // Los navegadores suelen dar TypeError("Failed to fetch") para:
-  // - CORS
-  // - DNS/TLS
-  // - conexión caída
-  // - server down
-  // No se puede distinguir 100% desde JS, pero podemos mejorar UX.
   const msg = String(err?.message || err);
   if (!navigator.onLine) return { kind: "OFFLINE", msg: "Sin conexión a internet." };
   if (msg.includes("timeout") || err?.name === "AbortError") return { kind: "TIMEOUT", msg: "Tiempo de espera agotado." };
-  // default
   return { kind: "NETWORK_OR_CORS", msg: "No se pudo conectar (red/CORS/servidor)." };
 }
 
@@ -143,7 +136,7 @@ async function requestWithRetries(makeAttempt, retries) {
     } catch (e) {
       lastErr = e;
       if (attempt < retries) {
-        const backoff = jitter(350 * attempt * attempt); // 350, 1400, 3150 aprox
+        const backoff = jitter(350 * attempt * attempt);
         await sleep(backoff);
         continue;
       }
@@ -180,10 +173,10 @@ const btnNew = document.getElementById("btnNew");
 
 const overlay = document.getElementById("overlay");
 const btnToggleSidebar = document.getElementById("btnToggleSidebar");
+const btnCloseSidebar = document.getElementById("btnCloseSidebar"); // <-- FALTABA
 const sidebar = document.getElementById("sidebar");
 
 const ctxMenu = document.getElementById("ctxMenu");
-
 const btnScrollDown = document.getElementById("btnScrollDown");
 
 const btnAttach = document.getElementById("btnAttach");
@@ -191,7 +184,6 @@ const filePicker = document.getElementById("filePicker");
 const btnMic = document.getElementById("btnMic");
 
 const attachBar = document.getElementById("attachBar");
-
 const bottomWrap = document.getElementById("bottomWrap");
 const composer = document.getElementById("composer");
 
@@ -215,22 +207,40 @@ function setThinkingUI(isThinking) {
   btnSend.disabled = isThinking || !hasPayloadToSend();
   btnStop.classList.toggle("hidden", !isThinking);
 
-  const disable = isThinking || isRecording();
-  elInput.disabled = disable;
-  btnAttach.disabled = disable;
+  const disableInput = isThinking || isRecording();
+  elInput.disabled = disableInput;
+  btnAttach.disabled = disableInput;
   btnMic.disabled = isThinking || isRecording();
 }
 
-function openSidebar() { sidebar.classList.add("open"); overlay.classList.remove("hidden"); }
-function closeSidebar() { sidebar.classList.remove("open"); overlay.classList.add("hidden"); closeContextMenu(); }
+function closeContextMenu() {
+  ctxMenu.classList.add("hidden");
+  ctxMenu.innerHTML = "";
+  ctxMenu.dataset.convId = "";
+}
 
-btnToggleSidebar.addEventListener("click", () => sidebar.classList.contains("open") ? closeSidebar() : openSidebar());
-overlay.addEventListener("click", closeSidebar);
+function openSidebar() {
+  sidebar.classList.add("open");
+  overlay.classList.remove("hidden");
+}
+function closeSidebar() {
+  sidebar.classList.remove("open");
+  overlay.classList.add("hidden");
+  closeContextMenu();
+}
 
+btnToggleSidebar?.addEventListener("click", () => {
+  sidebar.classList.contains("open") ? closeSidebar() : openSidebar();
+});
+btnCloseSidebar?.addEventListener("click", closeSidebar); // <-- FALTABA
+overlay?.addEventListener("click", closeSidebar);
+
+// Auto-resize textarea + habilitar envío
 elInput.addEventListener("input", () => {
   elInput.style.height = "auto";
   elInput.style.height = Math.min(elInput.scrollHeight, 160) + "px";
   btnSend.disabled = !!aborter || !hasPayloadToSend();
+  updateFloatingUI();
 });
 
 btnNew.onclick = newConversation;
@@ -238,7 +248,10 @@ btnSend.onclick = sendMessage;
 btnStop.onclick = () => { if (aborter) aborter.abort(); };
 
 elInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
 });
 
 // === Attachments ===
@@ -246,8 +259,10 @@ btnAttach.addEventListener("click", () => filePicker.click());
 filePicker.addEventListener("change", () => {
   const files = Array.from(filePicker.files || []);
   filePicker.value = "";
+
   const pdfs = files.filter(f => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf"));
   if (!pdfs.length) return;
+
   pendingFiles.push(...pdfs);
   renderAttachBar();
   btnSend.disabled = !!aborter || !hasPayloadToSend();
@@ -357,7 +372,9 @@ function formatMMSS(ms) {
   const ss = String(s % 60).padStart(2, "0");
   return `${mm}:${ss}`;
 }
-function stopRecordingTimer() { if (recordingTimer) { clearInterval(recordingTimer); recordingTimer = null; } }
+function stopRecordingTimer() {
+  if (recordingTimer) { clearInterval(recordingTimer); recordingTimer = null; }
+}
 
 function showRecordingMode(show) {
   composer.classList.toggle("hidden", show);
@@ -366,6 +383,7 @@ function showRecordingMode(show) {
   else renderAttachBar();
   updateFloatingUI();
   updateScrollDownButton();
+  setThinkingUI(!!aborter);
 }
 
 async function getMicStreamOnce() {
@@ -463,7 +481,9 @@ btnRecCancel.addEventListener("click", cancelRecording);
 btnRecSend.addEventListener("click", finishRecordingAndSend);
 
 // === Conversation helpers ===
-function getActiveConv() { return state.conversations.find(c => c.id === state.activeId) || null; }
+function getActiveConv() {
+  return state.conversations.find(c => c.id === state.activeId) || null;
+}
 
 function autoTitleFrom(text) {
   const t = (text || "").trim().replace(/\s+/g, " ");
@@ -472,11 +492,6 @@ function autoTitleFrom(text) {
 }
 
 // === Context Menu ===
-function closeContextMenu() {
-  ctxMenu.classList.add("hidden");
-  ctxMenu.innerHTML = "";
-  ctxMenu.dataset.convId = "";
-}
 function openContextMenu(convId, anchorEl) {
   ctxMenu.innerHTML = "";
 
@@ -746,21 +761,16 @@ function updateOutboxStatus() {
 
 async function flushOutbox() {
   if (!navigator.onLine) return;
-  // no procesar si estamos grabando o ya hay una request en curso
   if (isRecording() || aborter) return;
 
   let item = peekOutbox();
   while (item) {
     try {
-      // reconstruir conv + placeholder
       const conv = state.conversations.find(c => c.id === item.convId);
       if (!conv) { dequeueOutbox(); item = peekOutbox(); continue; }
 
-      // mostrar que se está enviando
       setStatus(`Reintentando envío pendiente… (${outboxCount()})`);
 
-      // no podemos guardar Files en localStorage; esta outbox es SOLO para texto/metadata
-      // Por eso: outbox SOLO guarda mensajes sin adjuntos.
       const raw = await callN8N({
         convId: item.convId,
         message: item.message,
@@ -774,7 +784,6 @@ async function flushOutbox() {
       try { data = JSON.parse(raw); } catch {}
       const reply = (data && data.reply != null) ? String(data.reply) : (raw || "Sin respuesta");
 
-      // reemplazar pending
       const idx = conv.messages.findIndex(m => m.pendingId === item.pendingId);
       if (idx !== -1) conv.messages[idx] = { role: "assistant", content: reply, at: nowIso() };
       else conv.messages.push({ role: "assistant", content: reply, at: nowIso() });
@@ -786,7 +795,6 @@ async function flushOutbox() {
       item = peekOutbox();
       renderAll();
     } catch (e) {
-      // si sigue fallando, no loops infinito ahora; corta y reintenta después
       const info = classifyFetchError(e);
       setStatus(`Pendiente: ${info.msg} (reintento automático)`);
       return;
@@ -796,7 +804,6 @@ async function flushOutbox() {
   updateOutboxStatus();
 }
 
-// Cuando vuelve internet, reintenta cola
 window.addEventListener("online", () => {
   flushOutbox().catch(() => {});
 });
@@ -834,7 +841,6 @@ async function sendMessage() {
   setThinkingUI(true);
   setStatus("Enviando…");
 
-  // metadata adjuntos para mostrar
   const attachmentsMeta = [
     ...pendingFiles.map(f => ({ kind: "pdf", name: f.name, type: f.type || "application/pdf", size: f.size })),
     ...(pendingAudio ? [{ kind: "audio", name: pendingAudio.file.name, type: pendingAudio.file.type, size: pendingAudio.file.size }] : [])
@@ -857,14 +863,12 @@ async function sendMessage() {
   try {
     const history = buildHistory(conv);
 
-    // armar files: (NO se pueden encolar offline porque no se serializan)
     const files = [];
     for (const f of pendingFiles) files.push(f);
     if (pendingAudio?.file) files.push(pendingAudio.file);
 
     const hasFiles = files.length > 0;
 
-    // Si estamos offline y no hay adjuntos, encolar y listo
     if (!navigator.onLine && !hasFiles) {
       enqueueOutbox({
         convId: conv.id,
@@ -877,7 +881,6 @@ async function sendMessage() {
       return;
     }
 
-    // Si offline pero hay adjuntos: no se puede encolar (por seguridad/tamaño). Mostrar claro.
     if (!navigator.onLine && hasFiles) {
       throw new Error("Estás sin internet. No puedo enviar PDF/audio hasta que vuelva conexión.");
     }
@@ -905,7 +908,6 @@ async function sendMessage() {
     setStatus("");
 
   } catch (err) {
-    // abort manual
     if (err?.name === "AbortError") {
       const idx = conv.messages.findIndex(m => m.pendingId === pendingId);
       if (idx !== -1) conv.messages[idx] = { role: "assistant", content: "⛔ Envío detenido.", at: nowIso() };
@@ -916,7 +918,6 @@ async function sendMessage() {
       return;
     }
 
-    // si NO hay archivos, encolamos para reintento automático
     const filesWereIncluded = (pendingFiles.length > 0) || !!pendingAudio;
 
     if (!filesWereIncluded) {
@@ -944,7 +945,6 @@ async function sendMessage() {
       return;
     }
 
-    // con adjuntos: mostramos error claro (no encolamos archivos)
     const info = classifyFetchError(err);
     const idx = conv.messages.findIndex(m => m.pendingId === pendingId);
     const extra = (info.kind === "NETWORK_OR_CORS")
@@ -978,18 +978,11 @@ async function sendMessage() {
     updateFloatingUI();
     updateScrollDownButton();
 
-    // si hay cola y volvió conexión, intenta mandar
     flushOutbox().catch(() => {});
   }
 }
 
 // === init ===
-function closeContextMenu() {
-  ctxMenu.classList.add("hidden");
-  ctxMenu.innerHTML = "";
-  ctxMenu.dataset.convId = "";
-}
-
 function renderAllInit() {
   renderAll();
   btnStop.classList.add("hidden");
